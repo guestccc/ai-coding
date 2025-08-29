@@ -1,0 +1,58 @@
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+
+// 创建axios实例
+const request: AxiosInstance = axios.create({
+  baseURL: 'https://api.openweathermap.org/data/2.5',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// 请求拦截器
+request.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    // 可以在这里添加token等认证信息
+    console.log('发送请求:', config.url);
+    
+    // 添加通用请求头
+    if (config.headers) {
+      config.headers['Accept'] = 'application/json, text/plain, */*';
+      config.headers['Accept-Language'] = 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7';
+    }
+    
+    return config;
+  },
+  (error) => {
+    console.error('请求拦截器错误:', error);
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器
+request.interceptors.response.use(
+  (response: AxiosResponse) => {
+    console.log('收到响应:', response.config.url);
+    return response;
+  },
+  (error) => {
+    console.error('响应拦截器错误:', error);
+    
+    // 统一错误处理
+    if (error.response) {
+      // 服务器返回错误状态码
+      const { status, data } = error.response;
+      console.error(`HTTP ${status}:`, data);
+    } else if (error.request) {
+      // 请求已发出但没有收到响应
+      console.error('网络错误:', error.message);
+    } else {
+      // 其他错误
+      console.error('请求配置错误:', error.message);
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+export default request;
