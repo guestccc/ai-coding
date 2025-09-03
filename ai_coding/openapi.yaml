@@ -1,0 +1,2476 @@
+openapi: 3.0.3
+info:
+  title: AI黑客松投票系统API
+  description: |
+    AI黑客松投票竞赛系统的RESTful API接口文档。
+    
+    ## 系统概述
+    - 支持500名大众评委同时在线投票
+    - 高并发PK对阵系统，支持实时投票
+    - 完整的参赛队伍和作品管理系统
+    - 基于JWT的用户认证和权限控制
+    - 分布式锁防重复投票机制
+    
+    ## 用户角色
+    - **匿名用户**: 可查看公开信息
+    - **参赛队员**: 管理团队和作品
+    - **大众评委**: 参与PK投票
+    - **系统管理员**: 管理整个系统
+    
+    ## 核心功能
+    - 用户认证与授权（域账号）
+    - 参赛队伍管理（队伍创建、成员管理、邀请机制）
+    - 作品管理（上传、版本管理、发布控制）
+    - 投票系统（高并发PK拉取、投票提交、结果统计）
+    - 系统管理（赛事管理、数据报表、奖金计算）
+    
+  version: 1.0.0
+  contact:
+    name: AI黑客松技术团队
+    email: tech@aihackathon.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.aihackathon.com/v1
+    description: 生产环境
+  - url: https://staging-api.aihackathon.com/v1  
+    description: 测试环境
+  - url: http://localhost:3000/api/v1
+    description: 本地开发环境
+
+tags:
+  - name: auth
+    description: 用户认证与授权
+  - name: users
+    description: 用户管理
+  - name: teams
+    description: 参赛队伍管理
+  - name: projects
+    description: 作品管理
+  - name: voting
+    description: 投票系统
+  - name: competitions
+    description: 赛事管理
+  - name: files
+    description: 文件管理
+  - name: statistics
+    description: 统计数据
+  - name: admin
+    description: 系统管理
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 使用JWT Bearer token进行认证
+
+  schemas:
+    # ===== 基础响应模型 =====
+    ApiResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: 请求是否成功
+        message:
+          type: string
+          description: 响应信息
+        data:
+          description: 响应数据
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: 错误代码
+            details:
+              type: string
+              description: 错误详情
+    
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 总记录数
+        page:
+          type: integer
+          description: 当前页码
+        limit:
+          type: integer
+          description: 每页记录数
+        totalPages:
+          type: integer
+          description: 总页数
+        hasNext:
+          type: boolean
+          description: 是否有下一页
+        hasPrevious:
+          type: boolean
+          description: 是否有上一页
+
+    PaginatedResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            meta:
+              $ref: '#/components/schemas/PaginationMeta'
+
+    # ===== 用户相关模型 =====
+    UserRole:
+      type: string
+      enum: [anonymous, participant, judge, admin]
+      description: 用户角色
+
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          description: 用户ID
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+        name:
+          type: string
+          description: 用户姓名
+        avatar:
+          type: string
+          format: uri
+          description: 头像URL
+        role:
+          $ref: '#/components/schemas/UserRole'
+        teamId:
+          type: string
+          description: 所属团队ID（如果有）
+        isActive:
+          type: boolean
+          description: 账户是否激活
+        lastLoginAt:
+          type: string
+          format: date-time
+          description: 最后登录时间
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+        password:
+          type: string
+          minLength: 6
+          description: 密码
+        rememberMe:
+          type: boolean
+          default: false
+          description: 是否记住登录状态
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        name:
+          type: string
+          minLength: 2
+        role:
+          $ref: '#/components/schemas/UserRole'
+        inviteCode:
+          type: string
+          description: 邀请码（可选）
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: JWT访问令牌
+        refreshToken:
+          type: string
+          description: 刷新令牌
+        expiresAt:
+          type: string
+          format: date-time
+          description: 令牌过期时间
+
+    # ===== 团队相关模型 =====
+    TeamMemberRole:
+      type: string
+      enum: [leader, member]
+      description: 团队成员角色
+
+    TeamMember:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        avatar:
+          type: string
+          format: uri
+        role:
+          $ref: '#/components/schemas/TeamMemberRole'
+        joinedAt:
+          type: string
+          format: date-time
+        skills:
+          type: array
+          items:
+            type: string
+          description: 技能标签
+
+    Team:
+      type: object
+      required:
+        - id
+        - name
+        - members
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+        logo:
+          type: string
+          format: uri
+          description: 团队LOGO
+        description:
+          type: string
+          maxLength: 500
+          description: 团队描述
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMember'
+          minItems: 1
+          maxItems: 5
+        isPublic:
+          type: boolean
+          default: true
+          description: 是否公开团队信息
+        maxMembers:
+          type: integer
+          default: 5
+          description: 最大成员数量
+        inviteCode:
+          type: string
+          description: 邀请码
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTeamRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        logo:
+          type: string
+          format: uri
+        isPublic:
+          type: boolean
+          default: true
+
+    UpdateTeamRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        logo:
+          type: string
+          format: uri
+        isPublic:
+          type: boolean
+
+    TeamInviteRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: 被邀请人邮箱
+        role:
+          $ref: '#/components/schemas/TeamMemberRole'
+          default: member
+        message:
+          type: string
+          maxLength: 200
+          description: 邀请消息
+
+    # ===== 作品相关模型 =====
+    ProjectStatus:
+      type: string
+      enum: [draft, submitted, published, archived]
+      description: 作品状态
+
+    Project:
+      type: object
+      required:
+        - id
+        - teamId
+        - title
+        - description
+      properties:
+        id:
+          type: string
+        teamId:
+          type: string
+        title:
+          type: string
+          minLength: 2
+          maxLength: 100
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        demoVideoUrl:
+          type: string
+          format: uri
+          description: 演示视频URL
+        experienceUrl:
+          type: string
+          format: uri
+          description: 在线体验URL
+        githubUrl:
+          type: string
+          format: uri
+          description: GitHub仓库URL
+        techStack:
+          type: array
+          items:
+            type: string
+          description: 技术栈
+        category:
+          type: string
+          description: 项目类别
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        isPublished:
+          type: boolean
+          default: false
+        version:
+          type: integer
+          default: 1
+        submittedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateProjectRequest:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 100
+        description:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        demoVideoUrl:
+          type: string
+          format: uri
+        experienceUrl:
+          type: string
+          format: uri
+        githubUrl:
+          type: string
+          format: uri
+        techStack:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+
+    UpdateProjectRequest:
+      allOf:
+        - $ref: '#/components/schemas/CreateProjectRequest'
+        - type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/ProjectStatus'
+            isPublished:
+              type: boolean
+
+    ProjectVersion:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        version:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        changes:
+          type: string
+          description: 版本变更说明
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # ===== 投票相关模型 =====
+    PKMatchStatus:
+      type: string
+      enum: [pending, active, completed, cancelled]
+      description: PK对战状态
+
+    PKMatch:
+      type: object
+      required:
+        - id
+        - roundId
+        - teamA
+        - teamB
+        - projectA
+        - projectB
+      properties:
+        id:
+          type: string
+        roundId:
+          type: string
+        teamA:
+          $ref: '#/components/schemas/Team'
+        teamB:
+          $ref: '#/components/schemas/Team'
+        projectA:
+          $ref: '#/components/schemas/Project'
+        projectB:
+          $ref: '#/components/schemas/Project'
+        status:
+          $ref: '#/components/schemas/PKMatchStatus'
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        totalVotes:
+          type: integer
+          default: 0
+        teamAVotes:
+          type: integer
+          default: 0
+        teamBVotes:
+          type: integer
+          default: 0
+        judgeLimit:
+          type: integer
+          default: 100
+          description: 每场PK的评委数量限制
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PKTaskResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        pk:
+          $ref: '#/components/schemas/PKMatch'
+        lockId:
+          type: string
+          description: 投票锁ID，防止重复投票
+        expiresAt:
+          type: string
+          format: date-time
+          description: 锁过期时间
+        remainingTime:
+          type: integer
+          description: 剩余投票时间（秒）
+        error:
+          type: string
+
+    VoteSubmissionRequest:
+      type: object
+      required:
+        - pkId
+        - winnerTeamId
+        - lockId
+      properties:
+        pkId:
+          type: string
+          description: PK对战ID
+        winnerTeamId:
+          type: string
+          description: 获胜团队ID
+        lockId:
+          type: string
+          description: 投票锁ID
+        confidence:
+          type: string
+          enum: [high, medium, low]
+          description: 投票信心度
+        reason:
+          type: string
+          maxLength: 500
+          description: 投票理由（可选）
+
+    VoteRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        pkId:
+          type: string
+        judgeId:
+          type: string
+        winnerTeamId:
+          type: string
+        loserTeamId:
+          type: string
+        winnerTeamName:
+          type: string
+        loserTeamName:
+          type: string
+        confidence:
+          type: string
+          enum: [high, medium, low]
+        reason:
+          type: string
+        matchDuration:
+          type: integer
+          description: 投票用时（秒）
+        isCorrectPrediction:
+          type: boolean
+          description: 是否预测正确（比赛结束后统计）
+        votedAt:
+          type: string
+          format: date-time
+        lockExpiresAt:
+          type: string
+          format: date-time
+
+    VoteSubmissionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        voteRecord:
+          $ref: '#/components/schemas/VoteRecord'
+        nextPK:
+          $ref: '#/components/schemas/PKMatch'
+          description: 下一场PK对战（如果有）
+        error:
+          type: string
+        conflictReason:
+          type: string
+          enum: [expired, duplicate, invalid_lock, round_ended]
+
+    VotingStats:
+      type: object
+      properties:
+        totalJudges:
+          type: integer
+        activeJudges:
+          type: integer
+        totalVotes:
+          type: integer
+        averageVoteTime:
+          type: number
+          format: float
+          description: 平均投票时间（秒）
+        completionRate:
+          type: number
+          format: float
+          description: 完成率（百分比）
+
+    UserVotingStats:
+      type: object
+      properties:
+        totalVotes:
+          type: integer
+        correctPredictions:
+          type: integer
+        averageVoteTime:
+          type: number
+          format: float
+        longestStreak:
+          type: integer
+        currentStreak:
+          type: integer
+        favoriteCategory:
+          type: string
+        completedMatches:
+          type: integer
+        pendingMatches:
+          type: integer
+
+    # ===== 比赛相关模型 =====
+    CompetitionStage:
+      type: string
+      enum: [registration, group_stage, knockout, semi_final, final, completed]
+
+    Competition:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        currentStage:
+          $ref: '#/components/schemas/CompetitionStage'
+        totalRounds:
+          type: integer
+        completedRounds:
+          type: integer
+        activeMatches:
+          type: integer
+        totalMatches:
+          type: integer
+        registeredTeams:
+          type: integer
+        maxTeams:
+          type: integer
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        estimatedEndTime:
+          type: string
+          format: date-time
+        registrationDeadline:
+          type: string
+          format: date-time
+        prizePool:
+          type: number
+          format: float
+        rules:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LeaderboardItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+        team:
+          $ref: '#/components/schemas/Team'
+        project:
+          $ref: '#/components/schemas/Project'
+        totalVotes:
+          type: integer
+        winRate:
+          type: number
+          format: float
+        matchesPlayed:
+          type: integer
+        matchesWon:
+          type: integer
+        score:
+          type: number
+          format: float
+          description: 综合得分
+
+    # ===== 文件相关模型 =====
+    FileInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        originalName:
+          type: string
+        type:
+          type: string
+          description: MIME类型
+        size:
+          type: integer
+          description: 文件大小（字节）
+        url:
+          type: string
+          format: uri
+        thumbnailUrl:
+          type: string
+          format: uri
+        ownerId:
+          type: string
+        ownerType:
+          type: string
+          enum: [user, team, project]
+        isPublic:
+          type: boolean
+          default: false
+        uploadedAt:
+          type: string
+          format: date-time
+
+    UploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileInfo'
+        message:
+          type: string
+
+    # ===== 错误模型 =====
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+        value:
+          description: 无效的值
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            details:
+              type: string
+            validationErrors:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationError'
+            timestamp:
+              type: string
+              format: date-time
+            requestId:
+              type: string
+
+paths:
+  # ===== 认证相关接口 =====
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 用户登录
+      description: |
+        用户通过邮箱和密码登录系统。
+        支持域账号认证，登录成功后返回JWT token。
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "judge@aihackathon.com"
+              password: "password123"
+              rememberMe: true
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+              example:
+                success: true
+                message: "登录成功"
+                data:
+                  user:
+                    id: "user123"
+                    email: "judge@aihackathon.com"
+                    name: "张评委"
+                    role: "judge"
+                  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expiresAt: "2024-01-01T12:00:00Z"
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 登录失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "邮箱或密码错误"
+        '429':
+          description: 登录尝试过于频繁
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: 用户注册
+      description: |
+        新用户注册，需要指定角色（参赛队员或大众评委）。
+        管理员角色需要特殊邀请码。
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: "newuser@example.com"
+              password: "password123"
+              name: "新用户"
+              role: "judge"
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: 注册失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 邮箱已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: 用户登出
+      description: |
+        用户登出，将token加入黑名单。
+      operationId: logout
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: 未认证
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: 刷新访问令牌
+      description: 使用refresh token获取新的access token
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          token:
+                            type: string
+                          expiresAt:
+                            type: string
+                            format: date-time
+        '401':
+          description: 无效的refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/profile:
+    get:
+      tags: [auth]
+      summary: 获取当前用户信息
+      description: 获取当前登录用户的详细信息
+      operationId: getProfile
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+        '401':
+          description: 未认证
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags: [auth]
+      summary: 更新用户信息
+      description: 更新当前用户的基本信息
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                avatar:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user:
+                            $ref: '#/components/schemas/User'
+        '400':
+          description: 更新失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ===== 团队管理接口 =====
+  /teams:
+    get:
+      tags: [teams]
+      summary: 获取团队列表
+      description: |
+        获取参赛团队列表，支持分页和搜索。
+        普通用户只能看到公开团队，管理员可以看到所有团队。
+      operationId: getTeams
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: 搜索团队名称
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Team'
+
+    post:
+      tags: [teams]
+      summary: 创建团队
+      description: |
+        创建新的参赛团队，创建者自动成为团队负责人。
+        每个用户只能创建或加入一个团队。
+      operationId: createTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Team'
+        '400':
+          description: 创建失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 用户已加入其他团队
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /teams/{teamId}:
+    get:
+      tags: [teams]
+      summary: 获取团队详情
+      description: 获取指定团队的详细信息
+      operationId: getTeamById
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Team'
+        '404':
+          description: 团队不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags: [teams]
+      summary: 更新团队信息
+      description: |
+        更新团队信息，只有团队负责人或管理员可以操作。
+      operationId: updateTeam
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Team'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 团队不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [teams]
+      summary: 删除团队
+      description: |
+        删除团队，只有团队负责人或管理员可以操作。
+        删除前需要确保团队没有正在进行的比赛。
+      operationId: deleteTeam
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 团队有正在进行的比赛，无法删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /teams/{teamId}/invite:
+    post:
+      tags: [teams]
+      summary: 邀请成员加入团队
+      description: |
+        邀请新成员加入团队，只有团队负责人可以操作。
+        被邀请人会收到邮件通知。
+      operationId: inviteTeamMember
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamInviteRequest'
+      responses:
+        '200':
+          description: 邀请发送成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: 邀请失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /teams/{teamId}/members/{memberId}:
+    delete:
+      tags: [teams]
+      summary: 移除团队成员
+      description: |
+        移除团队成员，团队负责人可以移除任何成员，
+        成员只能移除自己（退出团队）。
+      operationId: removeTeamMember
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 移除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 成员不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /teams/join/{inviteCode}:
+    post:
+      tags: [teams]
+      summary: 通过邀请码加入团队
+      description: |
+        用户通过邀请码加入团队。
+      operationId: joinTeamByInviteCode
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 加入成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Team'
+        '400':
+          description: 邀请码无效或已过期
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 用户已加入其他团队
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ===== 作品管理接口 =====
+  /projects:
+    get:
+      tags: [projects]
+      summary: 获取作品列表
+      description: |
+        获取作品列表，支持分页、搜索和筛选。
+        普通用户只能看到已发布的作品和自己团队的作品。
+      operationId: getProjects
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: 搜索作品标题和描述
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 筛选作品类别
+        - name: teamId
+          in: query
+          schema:
+            type: string
+          description: 筛选指定团队的作品
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProjectStatus'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Project'
+
+    post:
+      tags: [projects]
+      summary: 创建作品
+      description: |
+        创建新作品，只有参赛队员可以操作。
+        每个团队可以提交多个作品。
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Project'
+        '400':
+          description: 创建失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /projects/{projectId}:
+    get:
+      tags: [projects]
+      summary: 获取作品详情
+      description: 获取指定作品的详细信息
+      operationId: getProjectById
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Project'
+        '404':
+          description: 作品不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags: [projects]
+      summary: 更新作品信息
+      description: |
+        更新作品信息，只有作品所属团队成员或管理员可以操作。
+        更新后版本号自动递增。
+      operationId: updateProject
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Project'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [projects]
+      summary: 删除作品
+      description: |
+        删除作品，只有作品所属团队负责人或管理员可以操作。
+        已参加比赛的作品无法删除。
+      operationId: deleteProject
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 作品正在参加比赛，无法删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /projects/{projectId}/publish:
+    post:
+      tags: [projects]
+      summary: 发布作品
+      description: |
+        发布作品参加比赛，发布后作品将参与PK对战。
+        只有团队负责人可以操作。
+      operationId: publishProject
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Project'
+        '400':
+          description: 作品信息不完整，无法发布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /projects/{projectId}/unpublish:
+    post:
+      tags: [projects]
+      summary: 取消发布作品
+      description: |
+        取消发布作品，作品将退出比赛。
+        只有团队负责人可以操作，且作品不能正在进行PK对战。
+      operationId: unpublishProject
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 取消发布成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 作品正在进行PK对战，无法取消发布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /projects/{projectId}/versions:
+    get:
+      tags: [projects]
+      summary: 获取作品版本历史
+      description: 获取指定作品的所有版本历史
+      operationId: getProjectVersions
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProjectVersion'
+
+  /projects/{projectId}/versions/{versionId}/restore:
+    post:
+      tags: [projects]
+      summary: 恢复到指定版本
+      description: |
+        将作品恢复到指定版本，只有团队成员可以操作。
+        恢复后会创建新版本。
+      operationId: restoreProjectVersion
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 恢复成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Project'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 版本不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ===== 投票系统接口 =====
+  /voting/pk-task:
+    get:
+      tags: [voting]
+      summary: 获取PK投票任务
+      description: |
+        获取当前可用的PK对战任务，系统会为评委分配一个投票锁。
+        **高并发设计**：
+        - 使用分布式锁防止重复分配
+        - 支持500个评委同时获取不同的PK任务
+        - 锁定时间300秒，防止长时间占用
+        
+        **业务逻辑**：
+        - 评委每次只能获取一个PK任务
+        - 系统优先分配投票数较少的PK对战
+        - 已投票的PK不会再次分配给同一评委
+      operationId: getPKTask
+      parameters:
+        - name: preferredCategory
+          in: query
+          schema:
+            type: string
+          description: 偏好的作品类别（可选）
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PKTaskResponse'
+              examples:
+                success:
+                  summary: 成功获取PK任务
+                  value:
+                    success: true
+                    pk:
+                      id: "pk_12345"
+                      roundId: "round_3"
+                      teamA:
+                        id: "team_a1"
+                        name: "AI创新先锋"
+                      teamB:
+                        id: "team_b1" 
+                        name: "智能科技团队"
+                      status: "active"
+                      startTime: "2024-01-01T10:00:00Z"
+                      endTime: "2024-01-01T12:00:00Z"
+                    lockId: "lock_67890"
+                    expiresAt: "2024-01-01T10:05:00Z"
+                    remainingTime: 300
+                no_task:
+                  summary: 暂无可用任务
+                  value:
+                    success: false
+                    pk: null
+                    error: "暂无可用的PK对战，请稍后再试"
+        '429':
+          description: 获取过于频繁
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "获取任务过于频繁，请30秒后再试"
+
+  /voting/submit:
+    post:
+      tags: [voting]
+      summary: 提交投票
+      description: |
+        提交PK投票结果，需要提供有效的投票锁ID。
+        **高并发处理**：
+        - 使用分布式锁验证投票资格
+        - 防重复投票机制
+        - 原子性投票计数更新
+        
+        **业务规则**：
+        - 每个评委每场PK只能投票一次
+        - 投票锁有效期内必须提交
+        - 投票后立即释放锁，允许获取下一个PK
+      operationId: submitVote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoteSubmissionRequest'
+            example:
+              pkId: "pk_12345"
+              winnerTeamId: "team_a1"
+              lockId: "lock_67890"
+              confidence: "high"
+              reason: "项目创新性强，技术实现完善"
+      responses:
+        '200':
+          description: 投票成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteSubmissionResponse'
+              example:
+                success: true
+                voteRecord:
+                  id: "vote_abc123"
+                  pkId: "pk_12345"
+                  winnerTeamId: "team_a1"
+                  votedAt: "2024-01-01T10:02:30Z"
+                message: "投票提交成功"
+        '400':
+          description: 投票参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteSubmissionResponse'
+              example:
+                success: false
+                error: "无效的投票参数"
+                conflictReason: "invalid_lock"
+        '409':
+          description: 投票冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteSubmissionResponse'
+              examples:
+                duplicate:
+                  summary: 重复投票
+                  value:
+                    success: false
+                    error: "您已经为此PK投过票"
+                    conflictReason: "duplicate"
+                expired:
+                  summary: 投票锁已过期
+                  value:
+                    success: false
+                    error: "投票时间已过期，请重新获取PK任务"
+                    conflictReason: "expired"
+
+  /voting/records:
+    get:
+      tags: [voting]
+      summary: 获取投票记录
+      description: |
+        获取当前用户的投票历史记录，支持分页和筛选。
+        记录包含投票时间、对战信息、投票结果等。
+      operationId: getVotingRecords
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 开始时间筛选
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 结束时间筛选
+        - name: confidence
+          in: query
+          schema:
+            type: string
+            enum: [high, medium, low]
+          description: 按投票信心度筛选
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VoteRecord'
+
+  /voting/stats:
+    get:
+      tags: [voting]
+      summary: 获取个人投票统计
+      description: |
+        获取当前用户的投票统计数据，包括：
+        - 总投票数、正确预测数
+        - 平均投票时间
+        - 最长连胜记录
+        - 偏好类别分析
+      operationId: getUserVotingStats
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserVotingStats'
+              example:
+                success: true
+                data:
+                  totalVotes: 45
+                  correctPredictions: 38
+                  averageVoteTime: 42.5
+                  longestStreak: 12
+                  currentStreak: 5
+                  favoriteCategory: "AI应用"
+                  completedMatches: 45
+                  pendingMatches: 3
+
+  /voting/leaderboard:
+    get:
+      tags: [voting]
+      summary: 获取实时排行榜
+      description: |
+        获取实时比赛排行榜，按照综合得分排序。
+        **计算规则**：
+        - 基础分 = 获胜场次 * 10
+        - 投票权重 = 投票总数 * 0.1  
+        - 胜率奖励 = 胜率 * 50
+        - 综合得分 = 基础分 + 投票权重 + 胜率奖励
+        
+        支持实时更新，每次投票后自动重新计算排名。
+      operationId: getLeaderboard
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+          description: 返回排名数量
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 按类别筛选
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LeaderboardItem'
+              example:
+                success: true
+                data:
+                  - rank: 1
+                    team:
+                      id: "team_1"
+                      name: "AI创新先锋"
+                    totalVotes: 156
+                    winRate: 0.92
+                    matchesPlayed: 12
+                    matchesWon: 11
+                    score: 125.6
+
+  /voting/system-stats:
+    get:
+      tags: [voting]
+      summary: 获取系统投票统计
+      description: |
+        获取整体投票系统的统计数据，用于首页展示。
+        包含当前在线评委数、总投票数、平均投票时间等。
+      operationId: getSystemVotingStats
+      security: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VotingStats'
+
+  # ===== 比赛管理接口 =====
+  /competitions/current:
+    get:
+      tags: [competitions]
+      summary: 获取当前比赛信息
+      description: |
+        获取当前正在进行的比赛信息，包括：
+        - 比赛阶段和进度
+        - 参赛队伍数量
+        - 预计结束时间
+        - 比赛规则和奖励
+      operationId: getCurrentCompetition
+      security: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Competition'
+
+  /competitions/{competitionId}/progress:
+    get:
+      tags: [competitions]
+      summary: 获取比赛进度详情
+      description: |
+        获取指定比赛的详细进度信息，用于首页ProgressCard展示。
+      operationId: getCompetitionProgress
+      parameters:
+        - name: competitionId
+          in: path
+          required: true
+          schema:
+            type: string
+      security: []
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          competition:
+                            $ref: '#/components/schemas/Competition'
+                          votingStats:
+                            $ref: '#/components/schemas/VotingStats'
+
+  # ===== 文件管理接口 =====
+  /files/upload:
+    post:
+      tags: [files]
+      summary: 上传文件
+      description: |
+        上传文件到系统，支持多种文件类型：
+        - 图片：PNG、JPG、GIF (最大10MB)
+        - 视频：MP4、AVI、MOV (最大100MB)  
+        - 文档：PDF、DOC、PPT (最大50MB)
+        
+        上传后返回文件访问URL。
+      operationId: uploadFiles
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: 要上传的文件
+                ownerId:
+                  type: string
+                  description: 所有者ID
+                ownerType:
+                  type: string
+                  enum: [user, team, project]
+                  description: 所有者类型
+                isPublic:
+                  type: boolean
+                  default: false
+                  description: 是否公开访问
+            encoding:
+              files:
+                contentType: image/png, image/jpeg, image/gif, video/mp4, application/pdf
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+              example:
+                success: true
+                files:
+                  - id: "file_123"
+                    name: "demo_video_20240101.mp4"
+                    url: "https://cdn.aihackathon.com/files/file_123.mp4"
+                    type: "video/mp4"
+                    size: 15728640
+                message: "文件上传成功"
+        '400':
+          description: 上传失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                message: "文件格式不支持或文件过大"
+        '413':
+          description: 文件过大
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /files/{fileId}:
+    get:
+      tags: [files]
+      summary: 获取文件信息
+      description: 获取文件的元数据信息
+      operationId: getFileInfo
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FileInfo'
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [files]
+      summary: 删除文件
+      description: |
+        删除文件，只有文件所有者或管理员可以操作。
+        删除后文件URL将无法访问。
+      operationId: deleteFile
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ===== 管理员接口 =====
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: 获取用户管理列表
+      description: |
+        管理员获取所有用户列表，支持搜索和筛选。
+      operationId: adminGetUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserRole'
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/users/{userId}/toggle-status:
+    post:
+      tags: [admin]
+      summary: 切换用户状态
+      description: |
+        管理员激活或禁用用户账户。
+      operationId: adminToggleUserStatus
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+
+  /admin/competitions:
+    post:
+      tags: [admin]
+      summary: 创建新比赛
+      description: |
+        管理员创建新的比赛活动。
+      operationId: adminCreateCompetition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+                - startTime
+                - endTime
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+                maxTeams:
+                  type: integer
+                prizePool:
+                  type: number
+                  format: float
+                rules:
+                  type: string
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Competition'
+
+  /admin/statistics:
+    get:
+      tags: [admin]
+      summary: 获取系统统计数据
+      description: |
+        管理员获取系统整体统计数据，用于管理后台展示。
+      operationId: adminGetStatistics
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          totalUsers:
+                            type: integer
+                          totalTeams:
+                            type: integer
+                          totalProjects:
+                            type: integer
+                          totalVotes:
+                            type: integer
+                          activeJudges:
+                            type: integer
+                          ongoingMatches:
+                            type: integer
+                          systemLoad:
+                            type: object
+                            properties:
+                              cpu:
+                                type: number
+                                format: float
+                              memory:
+                                type: number
+                                format: float
+                              database:
+                                type: number
+                                format: float
+
+  # ===== WebSocket 实时通知 =====  
+  /ws/notifications:
+    get:
+      tags: [voting]
+      summary: WebSocket实时通知
+      description: |
+        WebSocket连接端点，用于实时推送：
+        - 新的PK对战开始通知
+        - 排行榜变化通知
+        - 投票结果更新通知
+        - 系统重要消息
+        
+        连接URL: `ws://localhost:3000/api/v1/ws/notifications`
+        需要在连接时传递JWT token作为查询参数。
+        
+        消息格式：
+        ```json
+        {
+          "type": "pk_started|leaderboard_updated|vote_submitted|system_message",
+          "data": { /* 具体数据 */ },
+          "timestamp": "2024-01-01T10:00:00Z"
+        }
+        ```
+      operationId: websocketNotifications
+      responses:
+        '101':
+          description: WebSocket连接建立成功
+        '401':
+          description: 认证失败
+        '426':
+          description: 需要升级到WebSocket协议
+
+  # ===== 健康检查 =====
+  /health:
+    get:
+      tags: [admin]
+      summary: 健康检查
+      description: |
+        系统健康检查端点，返回系统状态信息。
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: 系统正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "OK"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    description: 系统运行时间（秒）
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  database:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: "connected"
+                      responseTime:
+                        type: number
+                        description: 数据库响应时间（毫秒）
+                  redis:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: "connected"
+                      responseTime:
+                        type: number

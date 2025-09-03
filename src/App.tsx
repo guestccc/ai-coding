@@ -1,40 +1,77 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import CccPage from './pages/CccPage';
-import WeatherPage from './pages/WeatherPage';
-import LoginPage from './pages/LoginPage';
-import TestPage from './pages/TestPage';
-import ThemeShowcasePage from './pages/ThemeShowcasePage';
-import ComponentShowcasePage from './pages/ComponentShowcasePage';
-import DashboardPage from './pages/DashboardPage';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import HomePage from './pages/other/HomePage';
+import CccPage from './pages/other/CccPage';
+import WeatherPage from './pages/other/WeatherPage';
+import LoginPage from './pages/other/LoginPage';
+import TestPage from './pages/other/TestPage';
+import ThemeShowcasePage from './pages/other/ThemeShowcasePage';
+import ComponentShowcasePage from './pages/other/ComponentShowcasePage';
+import DashboardPage from './pages/other/DashboardPage';
+import MobileHomePage from './pages/marathon/MobileHomePage';
+import MobileVotePage from './pages/marathon/MobileVotePage';
+import MobileProjectsPage from './pages/marathon/MobileProjectsPage';
+import MobileRecordsPage from './pages/marathon/MobileRecordsPage';
+import MobileProfilePage from './pages/marathon/MobileProfilePage';
 import GlobalHeader from './components/GlobalHeader';
+import ErrorBoundary from './components/ErrorBoundary';
 import './styles/globals.css';
 import './styles/themes.css';
 import './styles/App.less';
 
-const App: React.FC = () => {
+// 带 GlobalHeader 的布局组件
+const WithHeaderLayout: React.FC = () => {
   return (
     <div className="app min-h-screen bg-background text-foreground">
       <GlobalHeader />
       <main>
-        <Routes>
-          {/* 主页路由 */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/ccc" element={<CccPage />} />
-          <Route path="/weather" element={<WeatherPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/test" element={<TestPage />} />
-          <Route path="/themes" element={<ThemeShowcasePage />} />
-          <Route path="/showcase" element={<ComponentShowcasePage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          
-          {/* 默认重定向到主页 */}
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        <Outlet />
       </main>
     </div>
+  );
+};
+
+// 不带 GlobalHeader 的布局组件
+const WithoutHeaderLayout: React.FC = () => {
+  return (
+    <div className="app min-h-screen bg-background text-foreground">
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <Routes>
+        {/* 带 GlobalHeader 的路由（other 目录的页面） */}
+        <Route element={<WithHeaderLayout />}>
+          <Route path="/" element={<ErrorBoundary><HomePage /></ErrorBoundary>} />
+          <Route path="/home" element={<ErrorBoundary><HomePage /></ErrorBoundary>} />
+          <Route path="/ccc" element={<ErrorBoundary><CccPage /></ErrorBoundary>} />
+          <Route path="/weather" element={<ErrorBoundary><WeatherPage /></ErrorBoundary>} />
+          <Route path="/login" element={<ErrorBoundary><LoginPage /></ErrorBoundary>} />
+          <Route path="/test" element={<ErrorBoundary><TestPage /></ErrorBoundary>} />
+          <Route path="/themes" element={<ErrorBoundary><ThemeShowcasePage /></ErrorBoundary>} />
+          <Route path="/showcase" element={<ErrorBoundary><ComponentShowcasePage /></ErrorBoundary>} />
+          <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+        </Route>
+        
+        {/* 不带 GlobalHeader 的路由（marathon 目录的页面） */}
+        <Route element={<WithoutHeaderLayout />}>
+          <Route path="/mobile" element={<ErrorBoundary><MobileHomePage /></ErrorBoundary>} />
+          <Route path="/mobile/vote" element={<ErrorBoundary><MobileVotePage /></ErrorBoundary>} />
+          <Route path="/mobile/projects" element={<ErrorBoundary><MobileProjectsPage /></ErrorBoundary>} />
+          <Route path="/mobile/records" element={<ErrorBoundary><MobileRecordsPage /></ErrorBoundary>} />
+          <Route path="/mobile/profile" element={<ErrorBoundary><MobileProfilePage /></ErrorBoundary>} />
+        </Route>
+        
+        {/* 默认重定向到主页 */}
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </ErrorBoundary>
   );
 };
 

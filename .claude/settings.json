@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "userPromptSubmit": "echo '\n🎯 UltraThink Framework v1.5.0 已激活\\n\\n可用命令:\\n- /ut:generate/prd - 生成产品需求文档\\n- /ut:generate/architecture - 生成技术架构\\n- /ut:generate/openapi - 生成API规范\\n- /ut:code/frontend - 生成前端代码\\n- /ut:code/backend - 生成后端代码\\n\\n当前项目状态: $(if [ -f docs/PRD.md ]; then echo \"PRD已生成\"; else echo \"等待PRD生成\"; fi)\\n'"
+  },
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(mkdir:*)"
+    ]
+  }
+}

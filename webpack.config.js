@@ -6,6 +6,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'bundle.js',
+    publicPath: '/',
     clean: true,
   },
   resolve: {
@@ -53,7 +54,14 @@ module.exports = {
     port: 3000,
     hot: true,
     open: true,
-    historyApiFallback: true,
+    historyApiFallback: {
+      index: '/index.html',
+      disableDotRule: true,
+      rewrites: [
+        { from: /^\/mobile/, to: '/index.html' },
+        { from: /./, to: '/index.html' }
+      ]
+    },
   },
   devtool: 'source-map',
 };

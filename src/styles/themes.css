@@ -1,134 +1,134 @@
-/* 主题色配置 */
+/* 主题色配置 - 使用 OKLCH 格式 */
 
 /* 默认主题 - Default (蓝色) */
 [data-theme="default"] {
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 石板色主题 - Slate */
 [data-theme="slate"] {
-  --primary: 215.4 16.3% 46.9%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.556 0 0);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 石色主题 - Stone */
 [data-theme="stone"] {
-  --primary: 25 5.3% 44.7%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.447 0 0);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 灰色主题 - Gray */
 [data-theme="gray"] {
-  --primary: 220 8.9% 46.1%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.461 0 0);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 中性主题 - Neutral */
 [data-theme="neutral"] {
-  --primary: 0 0% 45.1%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.451 0 0);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 红色主题 - Red */
 [data-theme="red"] {
-  --primary: 0 72.2% 50.6%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.506 0.245 27.325);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 玫瑰色主题 - Rose */
 [data-theme="rose"] {
-  --primary: 346.8 77.2% 49.8%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.498 0.277 346.8);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 橙色主题 - Orange */
 [data-theme="orange"] {
-  --primary: 24.6 95% 53.1%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.531 0.245 47.9);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 绿色主题 - Green */
 [data-theme="green"] {
-  --primary: 142.1 76.2% 36.3%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.363 0.162 142.1);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 蓝色主题 - Blue */
 [data-theme="blue"] {
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 黄色主题 - Yellow */
 [data-theme="yellow"] {
-  --primary: 47.9 95.8% 53.1%;
-  --primary-foreground: 26 83.3% 14.1%;
+  --primary: oklch(0.531 0.245 47.9);
+  --primary-foreground: oklch(0.141 0 0);
 }
 
 /* 紫色主题 - Violet */
 [data-theme="violet"] {
-  --primary: 262.1 83.3% 57.8%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.578 0.283 262.1);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 /* 暗色模式下的主题调整 */
 .dark[data-theme="default"] {
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: oklch(0.598 0.243 264.376);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .dark[data-theme="slate"] {
-  --primary: 215 20.2% 65.1%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: oklch(0.651 0 0);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .dark[data-theme="stone"] {
-  --primary: 28.3 7.1% 64.9%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: oklch(0.649 0 0);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .dark[data-theme="gray"] {
-  --primary: 220 14.3% 65.9%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: oklch(0.659 0 0);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .dark[data-theme="neutral"] {
-  --primary: 0 0% 63.9%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: oklch(0.639 0 0);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .dark[data-theme="red"] {
-  --primary: 0 62.8% 30.6%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.306 0.141 25.723);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 .dark[data-theme="rose"] {
-  --primary: 346.8 77.2% 49.8%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.498 0.277 346.8);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 .dark[data-theme="orange"] {
-  --primary: 20.5 90.2% 48.2%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.482 0.245 47.9);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 .dark[data-theme="green"] {
-  --primary: 142.1 70.6% 45.3%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.453 0.162 142.1);
+  --primary-foreground: oklch(0.985 0 0);
 }
 
 .dark[data-theme="blue"] {
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: oklch(0.598 0.243 264.376);
+  --primary-foreground: oklch(0.205 0 0);
 }
 
 .dark[data-theme="yellow"] {
-  --primary: 47.9 95.8% 53.1%;
-  --primary-foreground: 26 83.3% 14.1%;
+  --primary: oklch(0.531 0.245 47.9);
+  --primary-foreground: oklch(0.141 0 0);
 }
 
 .dark[data-theme="violet"] {
-  --primary: 263.4 70% 50.4%;
-  --primary-foreground: 210 40% 98%;
+  --primary: oklch(0.504 0.283 262.1);
+  --primary-foreground: oklch(0.985 0 0);
 }

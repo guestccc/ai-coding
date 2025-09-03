@@ -2,7 +2,11 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 
 
 // 创建axios实例
 const request: AxiosInstance = axios.create({
-  baseURL: 'https://api.openweathermap.org/data/2.5',
+  baseURL: process.env.NODE_ENV === 'production' 
+    ? 'https://api.aihackathon.com/v1'
+    : process.env.NODE_ENV === 'staging'
+    ? 'https://staging-api.aihackathon.com/v1'
+    : 'http://localhost:3000/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -21,6 +25,12 @@ request.interceptors.request.use(
       config.headers['Accept-Language'] = 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7';
     }
     
+    // 添加 JWT 认证头
+    const token = localStorage.getItem('auth_token');
+    if (token && config.headers) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     return config;
   },
   (error) => {
@@ -35,8 +45,18 @@ request.interceptors.response.use(
     console.log('收到响应:', response.config.url);
     return response;
   },
-  (error) => {
+  (error: any) => {
     console.error('响应拦截器错误:', error);
+    
+    // 处理 401 未授权错误
+    if (error.response?.status === 401) {
+      // 清除本地存储的 token
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('refresh_token');
+      
+      // 可以在这里添加重定向到登录页的逻辑
+      console.warn('用户未授权，请重新登录');
+    }
     
     // 统一错误处理
     if (error.response) {
