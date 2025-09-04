@@ -32,6 +32,7 @@ import {
 import { Competition } from '@/types/mobile/competition';
 import { ApiResponse } from '@/types/mobile/common';
 import MobileLayout from '@/components/mobile/MobileLayout';
+import { MobilePageLoading } from '@/components/Loading';
 
 // 状态管理
 interface HomePageState {
@@ -55,6 +56,19 @@ const MobileHomePage: React.FC = () => {
     refreshing: false,
     countdown: ''
   });
+
+  // 检查登录状态
+  const checkAuthStatus = () => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (!token || !user) {
+      // 用户未登录，跳转到登录页
+      navigate('/mobile/login');
+      return false;
+    }
+    return true;
+  };
 
   // 加载数据
   const loadData = async (isRefresh = false) => {
@@ -109,7 +123,10 @@ const MobileHomePage: React.FC = () => {
 
   // 初始化
   useEffect(() => {
-    loadData();
+    // 先检查登录状态，如果已登录才加载数据
+    if (checkAuthStatus()) {
+      loadData();
+    }
   }, []);
 
   // 倒计时更新
@@ -127,20 +144,12 @@ const MobileHomePage: React.FC = () => {
     return (state.competition.completedRounds / state.competition.totalRounds) * 100;
   };
 
-  if (state.loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">加载中...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <MobileLayout>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+      {state.loading ? (
+        <MobilePageLoading variant="spinner" text="加载中..." theme="gradient" />
+      ) : (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
       {/* 顶部导航栏 */}
       <header className="sticky top-0 z-100 bg-white/90 backdrop-blur-md shadow-sm">
         <div className="flex items-center justify-between p-4">
@@ -309,7 +318,8 @@ const MobileHomePage: React.FC = () => {
           </Card>
         </div>
       </main>
-      </div>
+        </div>
+      )}
     </MobileLayout>
   );
 };

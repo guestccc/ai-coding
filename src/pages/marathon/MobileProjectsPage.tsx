@@ -38,6 +38,7 @@ import {
   TeamMember
 } from '@/types/mobile/team';
 import MobileLayout from '@/components/mobile/MobileLayout';
+import { MobilePageLoading } from '@/components/Loading';
 
 // 页面状态接口
 interface ProjectPageState {
@@ -194,33 +195,19 @@ const MobileProjectsPage: React.FC = () => {
     }
   };
 
-  // 加载状态
-  if (state.isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-600">加载作品信息...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 错误状态
-  if (state.error && !state.team && !state.project) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">{state.error}</p>
-          <Button onClick={() => window.location.reload()}>重新加载</Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <MobileLayout>
+      {state.isLoading ? (
+        <MobilePageLoading variant="spinner" text="加载作品信息..." theme="light" />
+      ) : (state.error && !state.team && !state.project) ? (
+        <div className="min-h-[calc(100vh-5rem)] bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-600 mb-4">{state.error}</p>
+            <Button onClick={() => window.location.reload()}>重新加载</Button>
+          </div>
+        </div>
+      ) : (
       <div className="min-h-screen bg-gray-50">
       {/* 页面头部 */}
       <header className="sticky top-0 z-100 bg-white shadow-sm">
@@ -593,6 +580,7 @@ const MobileProjectsPage: React.FC = () => {
         <div className="pb-safe"></div>
       </footer>
       </div>
+      )}
     </MobileLayout>
   );
 };

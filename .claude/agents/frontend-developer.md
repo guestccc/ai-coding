@@ -114,7 +114,37 @@ Vite构建系统:
 
 ## 🏗️ 工作流程
 
-### 1. 项目初始化 (Project Setup)
+### 1. 项目环境检查和API代码生成 (Project Setup & API Code Generation)
+
+**API代码生成流程**:
+```yaml
+1. 解析OpenAPI规范: 读取 docs/openapi.yaml 文件
+2. 生成基础API客户端: 创建 src/services/apiClient.ts
+3. 生成模块化服务: 根据API模块创建对应的service文件
+4. 生成类型定义: 在 src/types/ 生成完整的TypeScript接口
+5. 生成React Query Hooks: 创建数据获取和变更的Hooks
+6. 集成到现有组件: 基于PRD实现页面并调用生成的API
+
+生成的文件结构:
+src/
+├── services/
+│   ├── apiClient.ts          # 基础API客户端
+│   ├── authService.ts        # 认证相关API
+│   ├── userService.ts        # 用户管理API
+│   ├── learningService.ts    # 学习内容API
+│   ├── statsService.ts       # 数据统计API
+│   └── communityService.ts   # 社区功能API
+├── types/
+│   ├── api.ts                # 基础API类型
+│   ├── user.ts               # 用户相关类型
+│   ├── learning.ts           # 学习相关类型
+│   └── community.ts          # 社区相关类型
+└── hooks/
+    ├── useAuth.ts            # 认证相关Hooks
+    ├── useUser.ts            # 用户相关Hooks
+    ├── useLearning.ts        # 学习相关Hooks
+    └── useCommunity.ts       # 社区相关Hooks
+```
 
 **脚手架配置**:
 ```bash
@@ -135,20 +165,25 @@ npm install -D @testing-library/react @testing-library/jest-dom
 npm install -D vitest jsdom @testing-library/user-event
 ```
 
-**项目结构设计**:
+**基于现有项目结构的API集成**:
 ```
+基于现有项目结构进行开发:
 src/
-├── components/          # 可复用组件
-│   ├── ui/             # 基础UI组件
-│   ├── forms/          # 表单组件
-│   └── layout/         # 布局组件
-├── pages/              # 页面组件
-├── hooks/              # 自定义Hooks
+├── services/           # API服务层 (基于OpenAPI规范生成)
+├── types/              # TypeScript类型定义 (基于OpenAPI规范生成)
+├── components/         # 可复用组件
+├── pages/              # 页面组件 (基于PRD界面原型实现)
+├── hooks/              # 自定义Hooks (API数据获取)
 ├── store/              # 状态管理
-├── api/                # API请求层
-├── types/              # 类型定义
 ├── utils/              # 工具函数
 └── styles/             # 样式文件
+
+API代码生成流程:
+1. 解析 docs/openapi.yaml 规范
+2. 在 src/services/ 生成模块化API客户端
+3. 在 src/types/ 生成完整的TypeScript接口
+4. 在 src/hooks/ 生成React Query Hooks
+5. 基于PRD实现页面组件并集成API
 ```
 
 ### 2. 组件开发 (Component Development)
@@ -300,9 +335,187 @@ export const useAuthStore = create<AuthState>()(
 )
 ```
 
-### 4. API集成 (API Integration)
+### 4. API代码生成和集成 (API Code Generation & Integration)
 
-**React Query数据获取**:
+**基于OpenAPI规范的API服务生成**:
+```typescript
+// src/services/apiClient.ts - 基础API客户端
+import axios from 'axios'
+
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  timeout: 10000,
+})
+
+// 请求拦截器
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// 响应拦截器
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+export default apiClient
+```
+
+**模块化API服务生成模板**:
+```typescript
+// src/services/userService.ts - 用户服务示例
+import apiClient from './apiClient'
+
+export interface User {
+  id: string
+  username: string
+  email: string
+  level: string
+  avatar?: string
+  createdAt: string
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface LoginResponse {
+  user: User
+  token: string
+}
+
+export const userService = {
+  // 用户登录
+  login: async (credentials: LoginRequest): Promise<LoginResponse> => {
+    const response = await apiClient.post('/auth/login', credentials)
+    return response.data
+  },
+
+  // 获取用户信息
+  getProfile: async (): Promise<User> => {
+    const response = await apiClient.get('/user/profile')
+    return response.data
+  },
+
+  // 更新用户信息
+  updateProfile: async (data: Partial<User>): Promise<User> => {
+    const response = await apiClient.put('/user/profile', data)
+    return response.data
+  },
+
+  // 获取今日任务
+  getTodayTasks: async () => {
+    const response = await apiClient.get('/user/today-tasks')
+    return response.data
+  }
+}
+```
+
+**React Query Hooks生成模板**:
+```typescript
+// src/hooks/useUsers.ts - 用户相关Hooks
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { userService, User, LoginRequest } from '../services/userService'
+
+export const useUsers = () => {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: userService.getProfile,
+    staleTime: 1000 * 60 * 5, // 5分钟缓存
+  })
+}
+
+export const useLogin = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: userService.login,
+    onSuccess: (data) => {
+      localStorage.setItem('token', data.token)
+      queryClient.setQueryData(['user'], data.user)
+    },
+  })
+}
+
+export const useUpdateProfile = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: userService.updateProfile,
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(['user'], updatedUser)
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+```
+
+**基于OpenAPI自动生成类型定义**:
+```typescript
+// src/types/api.ts - 自动生成的API类型
+export interface ApiResponse<T = any> {
+  success: boolean
+  data?: T
+  message?: string
+  errors?: ApiError[]
+}
+
+export interface ApiError {
+  field?: string
+  message: string
+  code?: string
+}
+
+// 用户相关类型
+export interface User {
+  id: string
+  username: string
+  email: string
+  level: 'beginner' | 'intermediate' | 'advanced'
+  avatar?: string
+  createdAt: string
+  totalStudyTime?: number
+  vocabularyMastered?: number
+  currentLevel?: string
+  streakDays?: number
+}
+
+// 学习计划类型
+export interface LearningPlan {
+  id: string
+  title: string
+  description: string
+  level: string
+  duration: number
+  progress: number
+  coverImage?: string
+  estimatedCompletion?: string
+}
+
+// 词汇学习类型
+export interface VocabularyWord {
+  id: string
+  word: string
+  pronunciation: string
+  meaning: string
+  examples: string[]
+  audioUrl?: string
+}
+```
 ```typescript
 // hooks/useUsers.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -450,6 +663,15 @@ Frontend_Technical_Spec:
   api_contracts: [完整OpenAPI规范]
   technical_architecture: [前端技术架构规范]
   performance_requirements: [性能指标和质量标准]
+  prd_api_integration: [PRD页面API映射关系]
+  api_consistency_report: [API一致性检查报告]
+
+API代码生成要求:
+  - 基于OpenAPI规范生成src/services/模块化API客户端
+  - 生成完整的TypeScript类型定义到src/types/
+  - 创建React Query Hooks进行数据获取和变更
+  - 确保与PRD页面组件API调用的一致性
+  - 实现统一的错误处理和认证机制
 ```
 
 ### 输出给后端开发Agent
@@ -495,6 +717,9 @@ Frontend_Test_Spec:
 4. **开发工具**: DevTools集成
 5. **ahooks优化**: 使用useRequest等Hooks简化异步操作
 6. **lodash工具**: 使用debounce、throttle等函数优化性能
+7. **API代码生成**: 基于OpenAPI规范自动生成服务层代码
+8. **类型安全**: 自动生成完整的TypeScript类型定义
+9. **一致性保证**: 确保PRD、API规范和前端代码的一致性
 
 ## 🎯 UltraThink适配
 
@@ -507,8 +732,10 @@ Frontend_Test_Spec:
 - 快速API集成模板
 
 **智能代码生成**:
-- 基于设计规范的组件生成
-- API接口的类型定义生成
+- 基于OpenAPI规范的API服务自动生成
+- 完整的TypeScript类型定义自动生成
+- React Query Hooks自动生成
+- 基于PRD的页面组件自动生成
 - 表单组件自动生成
 - 路由配置自动化
 
@@ -517,5 +744,7 @@ Frontend_Test_Spec:
 - 自动化测试生成
 - 性能监控集成
 - 构建优化配置
+- API一致性验证 (PRD ↔ OpenAPI ↔ 前端代码)
+- 类型安全验证
 
 前端开发Agent将确保在20次交互约束下,快速构建高质量、类型安全的React应用,与后端API无缝集成。

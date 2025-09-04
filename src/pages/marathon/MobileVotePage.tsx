@@ -6,8 +6,8 @@ import {
   Pause, 
   ExternalLink, 
   Check,
-  Loader2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ import {
   VoteSubmissionResponse
 } from '@/types/mobile/voting';
 import MobileLayout from '@/components/mobile/MobileLayout';
+import { MobilePageLoading } from '@/components/Loading';
 
 // 投票页面状态
 interface VotingPageState {
@@ -181,45 +182,30 @@ const MobileVotePage: React.FC = () => {
     setVotingState(prev => ({ ...prev, currentView: view }));
   };
 
-  if (votingState.isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-600">正在加载PK任务...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (votingState.error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">{votingState.error}</p>
-          <Button onClick={() => navigate('/mobile')}>返回首页</Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!votingState.currentPK) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">暂无可投票的PK任务</p>
-          <Button onClick={() => navigate('/mobile')}>返回首页</Button>
-        </div>
-      </div>
-    );
-  }
-
-  const { teamA, teamB } = votingState.currentPK;
-
   return (
     <MobileLayout>
+      {votingState.isLoading ? (
+        <MobilePageLoading variant="spinner" text="正在加载PK任务..." theme="light" />
+      ) : votingState.error ? (
+        <div className="min-h-[calc(100vh-5rem)] bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-600 mb-4">{votingState.error}</p>
+            <Button onClick={() => navigate('/mobile')}>返回首页</Button>
+          </div>
+        </div>
+      ) : !votingState.currentPK ? (
+        <div className="min-h-[calc(100vh-5rem)] bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-yellow-500 mx-auto mb-4" />
+            <p className="text-gray-600 mb-4">暂无可投票的PK任务</p>
+            <Button onClick={() => navigate('/mobile')}>返回首页</Button>
+          </div>
+        </div>
+      ) : (
+        (() => {
+          const { teamA, teamB } = votingState.currentPK;
+          return (
       <div className="min-h-screen bg-gray-50">
       {/* 投票头部 */}
       <header className="sticky top-0 z-100 bg-white shadow-sm">
@@ -544,6 +530,9 @@ const MobileVotePage: React.FC = () => {
         </div>
       )}
       </div>
+          );
+        })()
+      )}
     </MobileLayout>
   );
 };

@@ -17,38 +17,36 @@
 
 ## 执行流程
 
-### 1. 项目脚手架创建
+### 1. API代码生成和集成
+基于现有项目结构进行API代码生成：
+
 ```bash
-# Vite + React + TypeScript
-npm create vite@latest frontend -- --template react-ts
+# 检查现有项目依赖
+npm list @tanstack/react-query axios
 
-# 核心依赖安装
-npm install react-router-dom @tanstack/react-query
-npm install react-hook-form @hookform/resolvers
-npm install zustand axios date-fns clsx
-
-# 开发依赖
-npm install -D @types/node @vitejs/plugin-react
-npm install -D eslint @typescript-eslint/parser
-npm install -D prettier eslint-config-prettier
-npm install -D @testing-library/react vitest jsdom
+# 安装缺失的依赖（如果不存在）
+npm install @tanstack/react-query axios date-fns
 ```
 
-### 2. 项目结构设计
+### 2. 基于现有项目结构的API集成
 ```
-src/frontend/
-├── components/          # 可复用组件
-│   ├── ui/             # 基础UI组件
-│   ├── forms/          # 表单组件
-│   └── layout/         # 布局组件
-├── pages/              # 页面组件
-├── hooks/              # 自定义Hooks
-├── store/              # 状态管理 (Zustand)
-├── api/                # API请求层
-├── types/              # TypeScript类型定义
+基于现有项目结构进行开发:
+src/
+├── services/           # API服务层 (基于OpenAPI规范生成)
+├── types/              # TypeScript类型定义 (基于OpenAPI规范生成)
+├── components/         # 可复用组件
+├── pages/              # 页面组件 (基于PRD界面原型实现)
+├── hooks/              # 自定义Hooks (API数据获取)
+├── store/              # 状态管理
 ├── utils/              # 工具函数
-├── styles/             # 全局样式
-└── __tests__/          # 测试文件
+└── styles/             # 样式文件
+
+API代码生成流程:
+1. 解析 docs/openapi.yaml 规范
+2. 在 src/services/ 生成模块化API客户端
+3. 在 src/types/ 生成完整的TypeScript接口
+4. 在 src/hooks/ 生成React Query Hooks
+5. 基于PRD实现页面组件并集成API
 ```
 
 ### 3. 核心功能实现
@@ -72,19 +70,35 @@ src/frontend/
   - 本地组件状态管理
 ```
 
-### 4. API集成
-基于@docs/openapi.yaml集成：
+### 4. API代码生成和集成
+基于@docs/openapi.yaml生成API代码：
 ```yaml
-API客户端:
-  - Axios配置和拦截器
-  - 自动生成API Types
-  - React Query Hooks
-  - 错误处理机制
+API代码生成:
+  - 解析OpenAPI规范生成模块化服务
+  - 自动生成TypeScript类型定义
+  - 创建React Query Hooks进行数据获取
+  - 实现统一的错误处理和认证机制
+  - 确保与PRD页面组件API调用的一致性
 
-认证集成:
-  - JWT Token管理
-  - 路由守卫
-  - 权限控制
+生成的文件结构:
+src/
+├── services/
+│   ├── apiClient.ts          # 基础API客户端
+│   ├── authService.ts        # 认证相关API
+│   ├── userService.ts        # 用户管理API
+│   ├── learningService.ts    # 学习内容API
+│   ├── statsService.ts       # 数据统计API
+│   └── communityService.ts   # 社区功能API
+├── types/
+│   ├── api.ts                # 基础API类型
+│   ├── user.ts               # 用户相关类型
+│   ├── learning.ts           # 学习相关类型
+│   └── community.ts          # 社区相关类型
+└── hooks/
+    ├── useAuth.ts            # 认证相关Hooks
+    ├── useUser.ts            # 用户相关Hooks
+    ├── useLearning.ts        # 学习相关Hooks
+    └── useCommunity.ts       # 社区相关Hooks
 ```
 
 ## 技术栈配置
@@ -133,16 +147,15 @@ TypeScript配置:
 
 ## 输出文件结构
 
-**主要输出**: `src/frontend/` 完整前端应用
+**主要输出**: API服务代码和前端组件集成
 ```yaml
 生成内容:
-  ✅ 项目配置文件 (vite.config.ts, tsconfig.json)
-  ✅ 基础组件库 (UI组件 + 样式)
-  ✅ 页面组件 (基于原型设计)
-  ✅ API集成层 (类型 + Hooks)
-  ✅ 路由配置 (React Router)
-  ✅ 状态管理 (Zustand stores)
-  ✅ 测试用例 (Unit + Integration)
+  ✅ API服务层代码 (src/services/ 模块化服务)
+  ✅ TypeScript类型定义 (src/types/ 完整接口)
+  ✅ React Query Hooks (src/hooks/ 数据获取)
+  ✅ 页面组件 (基于PRD实现，集成API)
+  ✅ 认证和错误处理机制
+  ✅ API一致性验证 (PRD ↔ OpenAPI ↔ 前端代码)
 ```
 
 ## 组件开发模板

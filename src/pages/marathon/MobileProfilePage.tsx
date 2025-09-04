@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  User, 
+  User as UserIcon, 
   Settings, 
   Award, 
   TrendingUp, 
@@ -10,22 +10,29 @@ import {
   Bell,
   Shield,
   HelpCircle,
-  Loader2,
   AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import MobileLayout from '@/components/mobile/MobileLayout';
+import { MobilePageLoading } from '@/components/Loading';
 import {
   getUserVotingStats
 } from '@/services/mobile/voting';
 import {
+  getProfile
+} from '@/services/mobile/user';
+import {
   UserVotingStats
 } from '@/types/mobile/voting';
+import {
+  User
+} from '@/types/mobile/auth';
 
 // 页面状态接口
 interface ProfilePageState {
+  userInfo: User | null;
   userStats: UserVotingStats | null;
   isLoading: boolean;
   error: string | null;
@@ -34,27 +41,45 @@ interface ProfilePageState {
 const MobileProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const [state, setState] = useState<ProfilePageState>({
+    userInfo: null,
     userStats: null,
     isLoading: true,
     error: null
   });
 
-  // 加载用户统计数据
+  // 处理登出
+  const handleLogout = () => {
+    // 清除本地存储的认证信息
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // 跳转到登录页面
+    navigate('/mobile/login');
+  };
+
+  // 加载用户数据
   useEffect(() => {
-    const loadUserStats = async () => {
+    const loadUserData = async () => {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
       try {
-        const response = await getUserVotingStats();
+        // 并行加载用户信息和统计数据
+        const [profileResponse, statsResponse] = await Promise.all([
+          getProfile(),
+          getUserVotingStats()
+        ]);
         
         setState(prev => ({
           ...prev,
           isLoading: false,
-          userStats: response.success ? (response.data || null) : null,
-          error: !response.success ? (typeof response.error === 'string' ? response.error : '获取用户信息失败') : null
+          userInfo: profileResponse.success ? profileResponse.data?.user || null : null,
+          userStats: statsResponse.success ? (statsResponse.data || null) : null,
+          error: (!profileResponse.success || !statsResponse.success) 
+            ? '加载用户信息失败，请重试' 
+            : null
         }));
       } catch (error) {
-        console.error('加载用户统计失败:', error);
+        console.error('加载用户数据失败:', error);
         setState(prev => ({
           ...prev,
           isLoading: false,
@@ -63,50 +88,53 @@ const MobileProfilePage: React.FC = () => {
       }
     };
 
-    loadUserStats();
+    loadUserData();
   }, []);
 
-  // 加载状态
-  if (state.isLoading) {
-    return (
-      <MobileLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-4" />
-            <p className="text-gray-600">加载用户信息...</p>
-          </div>
-        </div>
-      </MobileLayout>
-    );
-  }
-
-  // 错误状态
-  if (state.error) {
-    return (
-      <MobileLayout>
-        <div className="min-h-screen flex items-center justify-center">
+  return (
+    <MobileLayout>
+      {state.isLoading ? (
+        <MobilePageLoading text="加载用户信息..." variant="spinner" />
+      ) : state.error ? (
+        <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center">
           <div className="text-center">
             <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
             <p className="text-gray-600 mb-4">{state.error}</p>
             <Button onClick={() => window.location.reload()}>重新加载</Button>
           </div>
         </div>
-      </MobileLayout>
-    );
-  }
-
-  return (
-    <MobileLayout>
-      {/* 页面头部 */}
-      <header className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+      ) : (
+        <>
+          {/* 页面头部 */}
+          <header className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
         <div className="px-4 py-6">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <User className="h-8 w-8 text-white" />
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+              {state.userInfo?.avatar ? (
+                <img 
+                  src={state.userInfo.avatar} 
+                  alt={state.userInfo.name || '用户头像'} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <UserIcon className="h-8 w-8 text-white" />
+              )}
             </div>
             <div className="flex-1">
-              <h1 className="text-xl font-bold">评委用户</h1>
-              <p className="text-blue-100 text-sm">AI黑客松评委</p>
+              <h1 className="text-xl font-bold">
+                {state.userInfo?.name || '用户'}
+              </h1>
+              <p className="text-blue-100 text-sm">
+                {state.userInfo?.role === 'judge' ? 'AI黑客松评委' :
+                 state.userInfo?.role === 'participant' ? 'AI黑客松参与者' :
+                 state.userInfo?.role === 'admin' ? 'AI黑客松管理员' :
+                 'AI黑客松用户'}
+              </p>
+              {state.userInfo?.email && (
+                <p className="text-blue-200 text-xs mt-1">
+                  {state.userInfo.email}
+                </p>
+              )}
             </div>
             <Button
               variant="ghost"
@@ -211,7 +239,10 @@ const MobileProfilePage: React.FC = () => {
                 </div>
               </button>
               
-              <button className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-red-600">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-red-600"
+              >
                 <div className="flex items-center space-x-3">
                   <LogOut className="h-5 w-5" />
                   <span>退出登录</span>
@@ -221,6 +252,8 @@ const MobileProfilePage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
     </MobileLayout>
   );
 };

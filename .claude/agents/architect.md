@@ -110,6 +110,7 @@ API设计原则:
   - 统一响应格式
   - 版本管理策略
   - 错误码标准化
+  - PRD页面API映射: 根据PRD界面原型图描述，为每个页面功能补充对应的API接口
 
 路径设计模式:
   GET /api/v1/users         # 获取用户列表
@@ -124,6 +125,22 @@ API设计原则:
   message: string
   errors?: object[]
   pagination?: object
+
+PRD页面API补充流程:
+  1. 解析PRD文档中的界面原型图描述
+  2. 识别所有需要API调用的页面组件
+  3. 为每个组件设计对应的API接口
+  4. 在PRD文档中补充API调用信息
+  5. 生成完整的OpenAPI规范
+  6. 执行API一致性检查
+  7. 生成一致性检查报告
+
+API一致性检查规则:
+  - 路径匹配: PRD中的API路径必须存在于OpenAPI规范中
+  - 方法匹配: HTTP方法必须一致
+  - 参数验证: 请求参数必须符合规范定义
+  - 响应验证: 响应格式必须匹配Schema定义
+  - 错误处理: 错误码和错误信息必须一致
 ```
 
 ### 4. 数据模型设计
@@ -227,6 +244,7 @@ Serverless架构:
    - 认证授权机制
    - 错误处理策略
    - 版本管理方案
+   - PRD页面API映射表
 
 4. 数据设计
    - 实体关系图(ERD)
@@ -245,6 +263,26 @@ Serverless架构:
    - 技术风险评估
    - 资源需求评估
    - 质量保证策略
+```
+
+### PRD页面API映射表示例
+```yaml
+页面API映射:
+  - 页面: 登录页 [/login]
+    组件: 登录按钮
+    API: POST /api/v1/auth/login
+    请求: {username: string, password: string}
+    响应: {token: string, user: object}
+
+  - 页面: 首页 [/home]
+    组件: 今日任务卡片
+    API: GET /api/v1/user/today-tasks
+    响应: {tasks: array, progress: number}
+
+  - 页面: 学习中心 [/learning-center]
+    组件: 词汇学习区块
+    API: GET /api/v1/learning/vocabulary/modules
+    响应: {modules: array, progress: object}
 ```
 
 ## 🔄 Agent协作接口
@@ -273,6 +311,7 @@ Frontend_Technical_Spec:
     - 数据模型定义
     - 错误处理机制
     - 认证授权方案
+    - PRD页面API映射表
   
   technical_architecture:
     - 前端技术栈规范
@@ -285,6 +324,14 @@ Frontend_Technical_Spec:
     - 代码规范和质量标准
     - 测试策略和覆盖率
     - SEO和无障碍要求
+  
+  prd_api_integration:
+    - 更新后的PRD文档（包含页面API补充）
+    - 页面组件与API的对应关系
+    - API调用示例代码
+    - 错误处理最佳实践
+    - API一致性检查报告
+    - 接口匹配状态统计
 ```
 
 ### 输出给后端开发Agent
@@ -297,6 +344,7 @@ Backend_Technical_Spec:
     - 所有端点定义和实现要求
     - 请求响应数据结构
     - 错误码和异常处理
+    - PRD页面API需求说明
   
   database_architecture:
     - 完整数据库Schema设计
@@ -309,6 +357,14 @@ Backend_Technical_Spec:
     - 服务层和业务逻辑架构
     - 中间件和缓存策略
     - 认证授权和安全机制
+  
+  prd_api_requirements:
+    - PRD页面功能对应的API实现要求
+    - 性能指标和响应时间要求
+    - 并发处理能力要求
+    - 数据一致性保证
+    - API一致性验证要求
+    - 接口测试覆盖率要求
 ```
 
 ## 💡 最佳实践
@@ -324,6 +380,12 @@ Backend_Technical_Spec:
 2. **幂等性设计**: GET/PUT/DELETE操作幂等
 3. **状态码合理使用**: 2xx成功,4xx客户端错误,5xx服务端错误
 4. **版本管理**: 通过URL路径或Header管理版本
+5. **PRD页面映射**: 确保每个页面功能都有对应的API接口
+6. **接口一致性**: 保持请求响应格式的统一性
+7. **错误处理**: 提供清晰的错误信息和调试信息
+8. **一致性验证**: 定期检查PRD页面API与OpenAPI规范的一致性
+9. **自动化检查**: 实现API一致性自动化验证流程
+10. **版本同步**: 确保PRD和API文档的版本同步更新
 
 ### 数据库设计原则
 1. **规范化设计**: 避免数据冗余
