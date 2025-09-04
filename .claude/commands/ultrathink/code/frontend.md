@@ -89,6 +89,10 @@ src/
 │   ├── learningService.ts    # 学习内容API
 │   ├── statsService.ts       # 数据统计API
 │   └── communityService.ts   # 社区功能API
+│   └── mobile/               # 移动端服务
+│       ├── auth.ts           # 移动端认证服务
+│       ├── user.ts           # 移动端用户服务
+│       └── index.ts          # 移动端服务导出
 ├── types/
 │   ├── api.ts                # 基础API类型
 │   ├── user.ts               # 用户相关类型
@@ -151,11 +155,14 @@ TypeScript配置:
 ```yaml
 生成内容:
   ✅ API服务层代码 (src/services/ 模块化服务)
-  ✅ TypeScript类型定义 (src/types/ 完整接口)
+  ✅ TypeScript类型定义 (src/types/ 完整接口) 
   ✅ React Query Hooks (src/hooks/ 数据获取)
   ✅ 页面组件 (基于PRD实现，集成API)
   ✅ 认证和错误处理机制
   ✅ API一致性验证 (PRD ↔ OpenAPI ↔ 前端代码)
+  ✅ 请求拦截器配置 (src/utils/request.ts)
+  ✅ 移动端认证服务 (src/services/mobile/auth.ts)
+  ✅ 移动端用户服务 (src/services/mobile/user.ts)
 ```
 
 ## 组件开发模板

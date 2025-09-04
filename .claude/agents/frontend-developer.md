@@ -134,6 +134,10 @@ src/
 │   ├── learningService.ts    # 学习内容API
 │   ├── statsService.ts       # 数据统计API
 │   └── communityService.ts   # 社区功能API
+│   └── mobile/               # 移动端服务
+│       ├── auth.ts           # 移动端认证服务
+│       ├── user.ts           # 移动端用户服务
+│       └── index.ts          # 移动端服务导出
 ├── types/
 │   ├── api.ts                # 基础API类型
 │   ├── user.ts               # 用户相关类型
@@ -170,12 +174,13 @@ npm install -D vitest jsdom @testing-library/user-event
 基于现有项目结构进行开发:
 src/
 ├── services/           # API服务层 (基于OpenAPI规范生成)
+│   └── mobile/         # 移动端服务 (认证、用户等)
 ├── types/              # TypeScript类型定义 (基于OpenAPI规范生成)
 ├── components/         # 可复用组件
 ├── pages/              # 页面组件 (基于PRD界面原型实现)
 ├── hooks/              # 自定义Hooks (API数据获取)
 ├── store/              # 状态管理
-├── utils/              # 工具函数
+├── utils/              # 工具函数 (包含请求拦截器)
 └── styles/             # 样式文件
 
 API代码生成流程:
@@ -184,6 +189,9 @@ API代码生成流程:
 3. 在 src/types/ 生成完整的TypeScript接口
 4. 在 src/hooks/ 生成React Query Hooks
 5. 基于PRD实现页面组件并集成API
+6. 配置请求拦截器 (src/utils/request.ts)
+7. 实现移动端认证服务 (src/services/mobile/auth.ts)
+8. 实现移动端用户服务 (src/services/mobile/user.ts)
 ```
 
 ### 2. 组件开发 (Component Development)
